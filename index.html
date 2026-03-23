@@ -625,22 +625,22 @@ footer{background:var(--surface);border-top:1px solid var(--border);padding:56px
 gsap.registerPlugin(ScrollTrigger);
 
 // ── LENIS スムーズスクロール ────────────────────────────────
-const lenis = typeof Lenis !== 'undefined' ? new Lenis({
+window.lenis = typeof Lenis !== 'undefined' ? new Lenis({
   duration: 1.3,
   easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
   smooth: true,
   smoothTouch: false,
 }) : null;
-if(lenis){
-  lenis.on('scroll', ScrollTrigger.update);
-  gsap.ticker.add(time => lenis.raf(time * 1000));
+if(window.lenis){
+  window.lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add(time => window.lenis.raf(time * 1000));
   gsap.ticker.lagSmoothing(0);
 }
 // スムーズスクロール上書き（Lenis使用時）
 document.querySelectorAll('a[href^="#"]').forEach(a => {
   a.addEventListener('click', e => {
     const t = document.querySelector(a.getAttribute('href'));
-    if(t){ e.preventDefault(); lenis ? lenis.scrollTo(t, {offset:0}) : t.scrollIntoView({behavior:'smooth'}); }
+    if(t){ e.preventDefault(); window.lenis ? window.lenis.scrollTo(t, {offset:0}) : t.scrollIntoView({behavior:'smooth'}); }
   });
 });
 
@@ -721,112 +721,143 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
 // ── SMOOTH SCROLL: Lenis初期化ブロック内で処理済み ──────────
 </script>
 <script>
-// ── THREE.JS: "SCATTERED MEMOS ORGANIZING" SCENE ────────────
+// ── THREE.JS: "SCATTERED → BOX" SCENE ───────────────────────
 (function(){
   if(!window.THREE)return;
   const isMob=window.innerWidth<860;
-  const NC=isMob?14:22; // node count reduced on mobile
-  const c=document.getElementById('hcv');
-  const W=c.clientWidth||540,H=c.clientHeight||(isMob?260:500);
+  const NC=isMob?12:20;
+  const container=document.getElementById('hcv');
+  const W=container.clientWidth||540,H=container.clientHeight||(isMob?260:500);
+
   const rdr=new THREE.WebGLRenderer({antialias:true,alpha:true});
   rdr.setSize(W,H);rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
-  rdr.setClearColor(0,0);c.appendChild(rdr.domElement);
+  rdr.setClearColor(0,0);container.appendChild(rdr.domElement);
+
   const scene=new THREE.Scene();
   const cam=new THREE.PerspectiveCamera(48,W/H,.1,100);
   cam.position.z=7;
 
   const ACC=new THREE.Color(0x00ff9d);
-  const DIM=new THREE.Color(0x1c1c1c);
+  const DIM=new THREE.Color(0x222222);
   const nodes=[],grp=new THREE.Group();scene.add(grp);
 
-  // "Scattered memos" start positions — chaotic spread
-  // "Organized" target positions — neat grid-like arrangement
+  // 正方形の輪郭上にNC個の均等配置
+  function squarePos(i,total,size){
+    const s=size||2.2, h=s/2;
+    const perSide=Math.ceil(total/4);
+    const side=Math.floor(i/perSide);
+    const t=(i%perSide)/(perSide-1||1);
+    if(side===0)return [ h*(2*t-1), h, 0];
+    if(side===1)return [ h, h*(1-2*t), 0];
+    if(side===2)return [ h*(1-2*t),-h, 0];
+    return [-h, h*(2*t-1), 0];
+  }
+
   for(let i=0;i<NC;i++){
-    const sz=.05+Math.random()*.12;
-    const geo=new THREE.BoxGeometry(sz,sz*(.5+Math.random()*.8),sz*.2);
-    const isA=Math.random()>.72;
+    const sz=.06+Math.random()*.1;
+    const geo=new THREE.BoxGeometry(sz,sz*(.6+Math.random()*.6),sz*.22);
+    const isA=i%4===0;
     const mat=new THREE.MeshBasicMaterial({
-      color:isA?ACC:DIM,wireframe:!isA,transparent:true,opacity:isA?.9:.55
+      color:isA?ACC:DIM,wireframe:!isA,transparent:true,opacity:isA?.95:.5
     });
     const mesh=new THREE.Mesh(geo,mat);
-    // scattered start
-    const sr=1.4+Math.random()*2.2,sth=Math.random()*Math.PI*2,sph=Math.acos(-1+Math.random()*2);
+
+    // 散乱スタート位置
+    const sr=1.8+Math.random()*2.0,sth=Math.random()*Math.PI*2,sph=Math.acos(-1+Math.random()*2);
     mesh.userData.sx=sr*Math.sin(sph)*Math.cos(sth);
-    mesh.userData.sy=sr*Math.sin(sph)*Math.sin(sth)*.65;
-    mesh.userData.sz=sr*Math.cos(sph);
-    // organized target: loose 3-row arrangement
-    const col=i%Math.ceil(NC/3), row=Math.floor(i/Math.ceil(NC/3));
-    mesh.userData.tx=(col-Math.ceil(NC/3)/2+.5)*(.55+Math.random()*.18);
-    mesh.userData.ty=(row-1)*(-.72+Math.random()*.1);
-    mesh.userData.tz=(Math.random()-.5)*.8;
-    // animated state
+    mesh.userData.sy=sr*Math.sin(sph)*Math.sin(sth)*.7;
+    mesh.userData.sz=(Math.random()-.5)*2.0;
+
+    // 正方形ターゲット位置（微小ランダム）
+    const[tx,ty,tz]=squarePos(i,NC,2.3);
+    mesh.userData.tx=tx+(Math.random()-.5)*.08;
+    mesh.userData.ty=ty+(Math.random()-.5)*.08;
+    mesh.userData.tz=tz+(Math.random()-.5)*.2;
+
     mesh.userData.phase=Math.random()*Math.PI*2;
-    mesh.userData.speed=.25+Math.random()*.35;
-    mesh.userData.rots=(Math.random()-.5)*.018;
+    mesh.userData.speed=.2+Math.random()*.4;
+    mesh.userData.rots=(Math.random()-.5)*.02;
     mesh.position.set(mesh.userData.sx,mesh.userData.sy,mesh.userData.sz);
     grp.add(mesh);nodes.push(mesh);
   }
 
-  // Line pool (re-use geometries, only update every 8 frames)
-  const lineMat=new THREE.LineBasicMaterial({color:0x00ff9d,opacity:.13,transparent:true});
+  // 完成時に光るボックス輪郭
+  const boxGeo=new THREE.BoxGeometry(2.3,2.3,.01);
+  const boxMat=new THREE.MeshBasicMaterial({color:0x00ff9d,wireframe:true,transparent:true,opacity:0});
+  const boxMesh=new THREE.Mesh(boxGeo,boxMat);
+  grp.add(boxMesh);
+
+  // エッジ（接続線）
   const eGrp=new THREE.Group();scene.add(eGrp);
   let edgeTick=0;
-  function buildEdges(){
+  function buildEdges(eO){
     while(eGrp.children.length)eGrp.remove(eGrp.children[0]);
-    const D=1.55;
+    const D=1.0+eO*1.4;
     for(let i=0;i<nodes.length;i++){
       for(let j=i+1;j<nodes.length;j++){
         const d=nodes[i].position.distanceTo(nodes[j].position);
         if(d<D){
+          const op=(1-d/D)*(.1+eO*.3);
           const g=new THREE.BufferGeometry().setFromPoints([nodes[i].position.clone(),nodes[j].position.clone()]);
-          const m=new THREE.LineBasicMaterial({color:0x00ff9d,opacity:(1-d/D)*.16,transparent:true});
+          const m=new THREE.LineBasicMaterial({color:0x00ff9d,opacity:op,transparent:true});
           eGrp.add(new THREE.Line(g,m));
         }
       }
     }
   }
 
-  // "Organize" phase driven by scroll
+  // スクロール取得（Lenis優先）
   let scrollY=0,organizeT=0;
-  window.addEventListener('scroll',()=>{scrollY=window.scrollY;},{passive:true});
+  if(window.lenis){
+    window.lenis.on('scroll',({scroll})=>{scrollY=scroll;});
+  } else {
+    window.addEventListener('scroll',()=>{scrollY=window.scrollY;},{passive:true});
+  }
 
   let frame=0;
   function anim(){
     requestAnimationFrame(anim);
-    const t=performance.now()*.001;
-    frame++;
-    // organize factor: 0=scattered, 1=organized
-    const heroH=document.getElementById('hero').offsetHeight||window.innerHeight;
-    organizeT=Math.min(1,Math.max(0,scrollY/heroH*2.2));
+    const t=performance.now()*.001;frame++;
 
-    nodes.forEach((n,i)=>{
+    // ヒーロー高さに対するスクロール進行度（0→1）
+    const heroH=document.getElementById('hero').offsetHeight||window.innerHeight;
+    organizeT=Math.min(1,Math.max(0,scrollY/(heroH*.75)));
+
+    // ease-in-out
+    const eO=organizeT<.5?2*organizeT*organizeT:1-Math.pow(-2*organizeT+2,2)/2;
+
+    nodes.forEach(n=>{
       const d=n.userData;
-      // lerp between scattered and organized
-      const tx=d.sx+(d.tx-d.sx)*organizeT;
-      const ty=d.sy+(d.ty-d.sy)*organizeT;
-      const tz=d.sz+(d.tz-d.sz)*organizeT;
-      // subtle float on top
-      n.position.x=tx+Math.sin(t*d.speed+d.phase)*.06*(1-organizeT*.7);
-      n.position.y=ty+Math.cos(t*d.speed*.8+d.phase)*.05*(1-organizeT*.7);
-      n.position.z=tz+Math.sin(t*d.speed*1.1+d.phase)*.04*(1-organizeT*.7);
-      n.rotation.x+=d.rots*(1-organizeT*.8);
-      n.rotation.y+=d.rots*1.2*(1-organizeT*.8);
+      const lx=d.sx+(d.tx-d.sx)*eO;
+      const ly=d.sy+(d.ty-d.sy)*eO;
+      const lz=d.sz+(d.tz-d.sz)*eO;
+      const f=(1-eO*.9)*.07;
+      n.position.x=lx+Math.sin(t*d.speed+d.phase)*f;
+      n.position.y=ly+Math.cos(t*d.speed*.8+d.phase)*f;
+      n.position.z=lz+Math.sin(t*d.speed*1.1+d.phase)*f*.5;
+      const r=(1-eO*.92)*d.rots;
+      n.rotation.x+=r*.8;n.rotation.y+=r*1.2;
     });
 
-    grp.rotation.y=scrollY*.0005+t*.03;
-    grp.rotation.x=scrollY*.00025;
+    // 完成時にボックス輪郭が浮かび上がる
+    boxMesh.material.opacity=Math.max(0,(eO-.65)*0.55);
+
+    // 整列するにつれてゆっくり回転
+    grp.rotation.y=t*.04*(1-eO*.75)+scrollY*.0003;
+    grp.rotation.x=scrollY*.00018*(1-eO*.6);
     eGrp.rotation.copy(grp.rotation);
 
-    if(++edgeTick%8===0)buildEdges();
+    if(++edgeTick%6===0)buildEdges(eO);
     rdr.render(scene,cam);
   }
-  buildEdges();anim();
+  buildEdges(0);anim();
 
   window.addEventListener('resize',()=>{
-    const nW=c.clientWidth,nH=c.clientHeight;
+    const nW=container.clientWidth,nH=container.clientHeight;
     cam.aspect=nW/nH;cam.updateProjectionMatrix();rdr.setSize(nW,nH);
   });
 })();
+</script>
 
 // ── MODAL ────────────────────────────────────────────────────
 let lastFocus=null;
