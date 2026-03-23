@@ -84,12 +84,28 @@ nav .nav-cta:hover{background:var(--accent);color:#000;}
 </style>
 <style>
 /* HERO */
-#hero{height:200vh;padding:0;position:relative;}
-.hero-sticky{
-  position:sticky;top:0;height:100vh;
-  display:grid;grid-template-columns:1fr 1fr;
+#hero{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;
   align-items:center;padding:130px 48px 80px;gap:40px;overflow:hidden;}
 .h-left{max-width:560px;}
+/* 3Dキャンバスは固定オーバーレイ */
+#hcv-wrap{
+  position:fixed;top:0;right:0;width:50%;height:100vh;
+  pointer-events:none;z-index:2;
+  transition:opacity .6s ease;
+}
+#hcv{width:100%;height:100%;display:block;}
+/* iの文字オーバーレイ */
+#box-i{
+  position:fixed;
+  top:50%;right:25%;
+  transform:translate(50%,-50%);
+  font-family:var(--ff-d);font-weight:800;
+  font-size:clamp(60px,8vw,120px);
+  color:var(--accent);
+  opacity:0;transition:opacity .8s ease;
+  pointer-events:none;z-index:3;
+  text-shadow:0 0 40px rgba(0,255,157,.6);
+}
 .h-eye{font-family:var(--ff-m);font-size:11px;letter-spacing:.2em;color:var(--accent);
   text-transform:uppercase;margin-bottom:24px;opacity:0;transform:translateY(20px);}
 .h-title{font-family:var(--ff-d);font-size:clamp(34px,4.5vw,60px);font-weight:800;
@@ -143,9 +159,9 @@ nav .nav-cta:hover{background:var(--accent);color:#000;}
 .sc-list li::before{content:'→ ';color:var(--accent);}
 
 @media(max-width:860px){
-  #hero{height:160vh;}
-  .hero-sticky{grid-template-columns:1fr;padding:100px 24px 60px;}
-  #hcv{height:260px;}
+  #hero{grid-template-columns:1fr;padding:100px 24px 60px;}
+  #hcv-wrap{width:100%;height:40vh;top:auto;bottom:0;position:fixed;opacity:.4;}
+  #box-i{font-size:clamp(40px,10vw,80px);right:50%;}
   .cg{grid-template-columns:1fr;gap:40px;}
   .sg{grid-template-columns:1fr;}
   #concept,#services{padding:80px 24px;}
@@ -336,8 +352,7 @@ footer{background:var(--surface);border-top:1px solid var(--border);padding:56px
 
 <!-- HERO -->
 <section id="hero" aria-labelledby="hero-h1">
-  <div class="hero-sticky">
-    <div class="h-left">
+  <div class="h-left">
     <p class="h-eye">AI × ライティング</p>
     <h1 class="h-title" id="hero-h1">RON_BOXi
       <span class="ac">読みやすい文章を、<br>一緒に作ります。</span>
@@ -350,10 +365,13 @@ footer{background:var(--surface);border-top:1px solid var(--border);padding:56px
       <span class="h-tag">AI-Driven Content</span>
     </div>
     <p class="h-copy">情報の混迷を、<strong>伝わる形へ。</strong></p>
-    </div>
-    <div id="hcv" aria-hidden="true" role="presentation"></div>
   </div>
 </section>
+<!-- 3D固定オーバーレイ -->
+<div id="hcv-wrap" aria-hidden="true">
+  <canvas id="hcv"></canvas>
+</div>
+<div id="box-i" aria-hidden="true">i</div>
 <!-- CONCEPT -->
 <section id="concept" aria-labelledby="concept-ttl">
   <p class="sec-lbl rev">Concept &amp; Approach</p>
@@ -727,36 +745,36 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
 // ── SMOOTH SCROLL: Lenis初期化ブロック内で処理済み ──────────
 </script>
 <script>
-// ── THREE.JS: "SCATTERED → BOX" SCENE ───────────────────────
+// ── THREE.JS: FIXED CANVAS + INTERSECTION OBSERVER ──────────
 (function(){
   if(!window.THREE)return;
   const isMob=window.innerWidth<860;
   const NC=isMob?12:20;
-  const container=document.getElementById('hcv');
-  const W=container.clientWidth||540,H=container.clientHeight||(isMob?260:500);
+  const wrap=document.getElementById('hcv-wrap');
+  const canvas=document.getElementById('hcv');
+  const boxI=document.getElementById('box-i');
 
-  const rdr=new THREE.WebGLRenderer({antialias:true,alpha:true});
-  rdr.setSize(W,H);rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
-  rdr.setClearColor(0,0);container.appendChild(rdr.domElement);
+  const rdr=new THREE.WebGLRenderer({antialias:true,alpha:true,canvas:canvas});
+  rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  rdr.setClearColor(0,0);
 
   const scene=new THREE.Scene();
-  const cam=new THREE.PerspectiveCamera(48,W/H,.1,100);
+  const cam=new THREE.PerspectiveCamera(48,1,.1,100);
   cam.position.z=7;
 
   const ACC=new THREE.Color(0x00ff9d);
   const DIM=new THREE.Color(0x222222);
   const nodes=[],grp=new THREE.Group();scene.add(grp);
 
-  // 正方形の輪郭上にNC個の均等配置
   function squarePos(i,total,size){
-    const s=size||2.2, h=s/2;
+    const s=size||2.2,h=s/2;
     const perSide=Math.ceil(total/4);
     const side=Math.floor(i/perSide);
     const t=(i%perSide)/(perSide-1||1);
-    if(side===0)return [ h*(2*t-1), h, 0];
-    if(side===1)return [ h, h*(1-2*t), 0];
-    if(side===2)return [ h*(1-2*t),-h, 0];
-    return [-h, h*(2*t-1), 0];
+    if(side===0)return[h*(2*t-1),h,0];
+    if(side===1)return[h,h*(1-2*t),0];
+    if(side===2)return[h*(1-2*t),-h,0];
+    return[-h,h*(2*t-1),0];
   }
 
   for(let i=0;i<NC;i++){
@@ -767,19 +785,14 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
       color:isA?ACC:DIM,wireframe:!isA,transparent:true,opacity:isA?.95:.5
     });
     const mesh=new THREE.Mesh(geo,mat);
-
-    // 散乱スタート位置
     const sr=1.8+Math.random()*2.0,sth=Math.random()*Math.PI*2,sph=Math.acos(-1+Math.random()*2);
     mesh.userData.sx=sr*Math.sin(sph)*Math.cos(sth);
     mesh.userData.sy=sr*Math.sin(sph)*Math.sin(sth)*.7;
     mesh.userData.sz=(Math.random()-.5)*2.0;
-
-    // 正方形ターゲット位置（微小ランダム）
     const[tx,ty,tz]=squarePos(i,NC,2.3);
     mesh.userData.tx=tx+(Math.random()-.5)*.08;
     mesh.userData.ty=ty+(Math.random()-.5)*.08;
     mesh.userData.tz=tz+(Math.random()-.5)*.2;
-
     mesh.userData.phase=Math.random()*Math.PI*2;
     mesh.userData.speed=.2+Math.random()*.4;
     mesh.userData.rots=(Math.random()-.5)*.02;
@@ -787,24 +800,22 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
     grp.add(mesh);nodes.push(mesh);
   }
 
-  // 完成時に光るボックス輪郭（EdgesGeometryで対角線なし）
   const boxGeo=new THREE.BoxGeometry(2.3,2.3,.1);
   const boxEdges=new THREE.EdgesGeometry(boxGeo);
   const boxMat=new THREE.LineBasicMaterial({color:0x00ff9d,transparent:true,opacity:0});
   const boxMesh=new THREE.LineSegments(boxEdges,boxMat);
   grp.add(boxMesh);
 
-  // エッジ（接続線）
   const eGrp=new THREE.Group();scene.add(eGrp);
   let edgeTick=0;
   function buildEdges(eO){
     while(eGrp.children.length)eGrp.remove(eGrp.children[0]);
-    const D=0.6+eO*0.8; // 完成に近づくほど短距離の線だけ残す
+    const D=.6+eO*.8;
     for(let i=0;i<nodes.length;i++){
       for(let j=i+1;j<nodes.length;j++){
         const d=nodes[i].position.distanceTo(nodes[j].position);
         if(d<D){
-          const op=(1-d/D)*(.1+eO*.3);
+          const op=(1-d/D)*(.1+eO*.25);
           const g=new THREE.BufferGeometry().setFromPoints([nodes[i].position.clone(),nodes[j].position.clone()]);
           const m=new THREE.LineBasicMaterial({color:0x00ff9d,opacity:op,transparent:true});
           eGrp.add(new THREE.Line(g,m));
@@ -813,26 +824,47 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
     }
   }
 
-  // スクロール取得（Lenis優先）
-  let scrollY=0,organizeT=0;
+  // IntersectionObserverでヒーローの可視率を取得
+  let heroRatio=1, wrapOpacity=1;
+  const hero=document.getElementById('hero');
+  const obs=new IntersectionObserver(entries=>{
+    heroRatio=entries[0].intersectionRatio;
+    // ヒーローが見えている間はcanvasを表示、外れたらフェードアウト
+    wrapOpacity=Math.max(0, heroRatio > 0.05 ? 1 : 0);
+    wrap.style.opacity=wrapOpacity;
+    boxI.style.opacity= (eO > .85 && heroRatio > 0.1) ? 1 : 0;
+  },{threshold: Array.from({length:21},(_,i)=>i/20)});
+  obs.observe(hero);
+
+  // スクロール量→organizeT（スクロールしながらページが動き形も変わる）
+  let scrollY=0, eO=0;
+  const onScroll=()=>{ scrollY=window.scrollY; };
   if(window.lenis){
-    window.lenis.on('scroll',({scroll})=>{scrollY=scroll;});
+    window.lenis.on('scroll',({scroll})=>{ scrollY=scroll; });
   } else {
-    window.addEventListener('scroll',()=>{scrollY=window.scrollY;},{passive:true});
+    window.addEventListener('scroll', onScroll, {passive:true});
   }
+
+  // キャンバスリサイズ
+  function resize(){
+    const W=wrap.clientWidth, H=wrap.clientHeight;
+    rdr.setSize(W,H);
+    cam.aspect=W/H;
+    cam.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener('resize', resize);
 
   let frame=0;
   function anim(){
     requestAnimationFrame(anim);
-    const t=performance.now()*.001;frame++;
+    const t=performance.now()*.001; frame++;
 
-    // ヒーロー全体の高さ - viewport高さ = スクロール余地
-    const heroEl=document.getElementById('hero');
-    const maxScroll=heroEl.offsetHeight-window.innerHeight;
-    organizeT=Math.min(1,Math.max(0,scrollY/maxScroll));
-
-    // ease-in-out
-    const eO=organizeT<.5?2*organizeT*organizeT:1-Math.pow(-2*organizeT+2,2)/2;
+    // ヒーローの高さに対するスクロール進行度
+    const heroBottom=hero.offsetTop+hero.offsetHeight;
+    const progress=Math.min(1,Math.max(0,scrollY/heroBottom));
+    // ease in-out
+    eO=progress<.5?2*progress*progress:1-Math.pow(-2*progress+2,2)/2;
 
     nodes.forEach(n=>{
       const d=n.userData;
@@ -844,13 +876,13 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
       n.position.y=ly+Math.cos(t*d.speed*.8+d.phase)*f;
       n.position.z=lz+Math.sin(t*d.speed*1.1+d.phase)*f*.5;
       const r=(1-eO*.92)*d.rots;
-      n.rotation.x+=r*.8;n.rotation.y+=r*1.2;
+      n.rotation.x+=r*.8; n.rotation.y+=r*1.2;
     });
 
-    // 完成時にボックス輪郭が浮かび上がる
-    boxMesh.material.opacity=Math.max(0,(eO-.65)*0.55);
+    boxMesh.material.opacity=Math.max(0,(eO-.65)*.55);
+    // iの文字：ボックス完成+ヒーローが見えているときに表示
+    boxI.style.opacity=(eO>.85 && heroRatio>.1)?'1':'0';
 
-    // 整列するにつれてゆっくり回転
     grp.rotation.y=t*.04*(1-eO*.75)+scrollY*.0003;
     grp.rotation.x=scrollY*.00018*(1-eO*.6);
     eGrp.rotation.copy(grp.rotation);
@@ -858,12 +890,7 @@ document.querySelectorAll('.sc-card,.sw-card').forEach(c=>{
     if(++edgeTick%6===0)buildEdges(eO);
     rdr.render(scene,cam);
   }
-  buildEdges(0);anim();
-
-  window.addEventListener('resize',()=>{
-    const nW=container.clientWidth,nH=container.clientHeight;
-    cam.aspect=nW/nH;cam.updateProjectionMatrix();rdr.setSize(nW,nH);
-  });
+  buildEdges(0); anim();
 })();
 </script>
 
